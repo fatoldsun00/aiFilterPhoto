@@ -26,23 +26,23 @@ for filename in os.listdir(os.path.abspath(os.path.join('assets'))):
 #     os.path.abspath(os.path.join('assets', '4539-le-grand-bal-masque-du-chateau-de-versai-diaporama_big-1.jpg')),
 # ]
 
-loader = ImageCaptionLoader(images=list_image_urls)
+# loader = ImageCaptionLoader(images=list_image_urls)
 
-documents = loader.load()
+# documents = loader.load()
 
-# #Parcourir et afficher les légendes et les métadonnées
-# for doc in documents:
-#    print("Légende:", doc.page_content)
-#    print("Métadonnées:", doc.metadata)
+# # #Parcourir et afficher les légendes et les métadonnées
+# # for doc in documents:
+# #    print("Légende:", doc.page_content)
+# #    print("Métadonnées:", doc.metadata)
 
-vectordb = FAISS.from_documents(documents, embedding)
+# vectordb = FAISS.from_documents(documents, embedding)
 
-#docs = vectordb.similarity_search(query)
-# print(docs[0].page_content)
-# print(docs[0].metadata)
-vectordb.save_local("image_faiss_index")
+# #docs = vectordb.similarity_search(query)
+# # print(docs[0].page_content)
+# # print(docs[0].metadata)
+# vectordb.save_local("image_faiss_index")
 
-#vectordb = FAISS.load_local("image_faiss_index", embedding)
+vectordb = FAISS.load_local("image_faiss_index", embedding)
 
 from langchain.output_parsers import ResponseSchema
 from langchain.output_parsers import StructuredOutputParser
