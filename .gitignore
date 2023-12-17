@@ -161,3 +161,4 @@ cython_debug/
 
 # App
 db/
+image_faiss_index/

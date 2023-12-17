@@ -10,6 +10,7 @@ from loadLLM import LoadLLM
 from langchain.vectorstores import FAISS
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
+from langchain.prompts import ChatPromptTemplate
 
 embedding = GPT4AllEmbeddings()
 
@@ -33,33 +34,25 @@ list_image_urls = [
 # docs = vectordb.similarity_search(query)
 # print(docs[0].page_content)
 # print(docs[0].metadata)
+#vectordb.save_local("image_faiss_index")
+
 vectordb = FAISS.load_local("image_faiss_index", embedding)
-
-
-
-vectordb.save_local("image_faiss_index")
-
-llm = LoadLLM(isLMStudio=True).llm
-#qa_chain = RetrievalQA.from_chain_type(
-#    llm,
-#    retriever=vectordb.as_retriever()
-#)
- 
 
 from langchain.output_parsers import ResponseSchema
 from langchain.output_parsers import StructuredOutputParser
 
 image_name = ResponseSchema(name="name",
-                             description="image name\
-                             String")
+                             description="image name")
 image_caption = ResponseSchema(name="caption",
-                                      description="image caption\
-                                      String")
+                                      description="image caption")
 
+test = ResponseSchema(
+             name="images",
+             description="""array of of images informations in the following format: [
+     { "name": string // image name',  "caption": string // image caption' }]""")
 
-response_schemas = [image_name, 
-                    image_caption,
-                    ]
+response_schemas = [test]
+#response_schemas = [image_name, image_caption]
 
 output_parser = StructuredOutputParser.from_response_schemas(response_schemas)
 
@@ -68,32 +61,63 @@ format_instructions = output_parser.get_format_instructions()
 
 
 
-def promptTemplate(format_instructions):
-    template_string = """
-    Use the following pieces of context, delimited by backticks, as a JSON.\ 
-    The format of the JSON is as follows and represent an image path and its caption:
-    ***
-    {{
-        "page_content": "an image of a frog on a flower [SEP]",
-        "metadata": {{
-            "image_path": "C:\\Users\\Shadow\\Documents\\aiFilterPhoto\\assets\\Hyla_japonica_sep01.jpg"
-        }},
-        "type": "Document"
-    }}
-    ***
-    From this context extract most revelant image for the query.
-    ```{context}```    
-    {format_instructions}
-    """
-    prompt_template = PromptTemplate(template=template_string, input_variables=["format_instructions","context"])
-    #prompt_template.format(format_instructions=format_instructions)
-    return prompt_template
+template_string = """
+Use the following context delimited by backticks
+context: ```{context}```    
+and extract all objects which are related to the text :"{question}". 
+Don't explain how to extract data, just extract data.
+{format_instructions}
+"""
+
+#prompt_template = PromptTemplate(template=template_string, 
+#    input_variables=["context"],
+#    partial_variables={"format_instructions"})
+#prompt_template.partial(format_instructions=format_instructions)
+prompt_template = PromptTemplate(template=template_string, input_variables=['context', 'question'], partial_variables={"format_instructions": format_instructions} )
+#messages = prompt_template.format(format_instructions=format_instructions,context="context")
+
+# print (prompt_template.format(context='{\
+#     "page_content": "an image of a frog on a flower [SEP]",\
+#     "metadata": {\
+#         "image_path": "C:\\Users\\Shadow\\Documents\\aiFilterPhoto\\assets\\Hyla_japonica_sep01.jpg"\
+#     },\
+#     "type": "Document"\
+# }', question="galaxy"))
+# exit()
+
+def format_docs(docs):
+    output = "["
+    for doc in docs:
+        #output += '{ "caption": "'+doc.page_content+'", "name": "'+r"{}".format(doc.metadata['image_path'])+'" }' 
+        output += '{ "caption": "'+doc.page_content+'", "name": "'+doc.metadata['image_path'].replace("\\", "/")+'" }' 
+    output += "]"
+    return output
 
 
-qa_chain = RetrievalQA.from_chain_type(llm,retriever=vectordb.as_retriever(search_kwargs={'k':1}),  chain_type_kwargs={"prompt": promptTemplate(format_instructions)})
-  
+# test = vectordb.as_retriever(search_kwargs={'k':1})  
+# toto = test.get_relevant_documents("galaxy")
+
+# print( toto)
+#exit()
+llm = LoadLLM(isLMStudio=True).llm
+#qa_chain = RetrievalQA.from_chain_type(
+#    llm,
+#    retriever=vectordb.as_retriever()
+#)
+#qa_chain = RetrievalQA.from_chain_type(llm,retriever=vectordb.as_retriever(search_kwargs={'k':1}) ,  chain_type_kwargs={"prompt": prompt_template})
+from langchain.schema import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+chain = (
+    {"context": vectordb.as_retriever(search_kwargs={'k':3}) | format_docs, "question": RunnablePassthrough()}
+    | prompt_template
+    | llm
+    | output_parser
+)
 
 # export function to query the index
-def query_index(query):
-    output_dict = output_parser.parse(qa_chain({"query":query})['result'])
-    return output_dict
+def query_index(query, vectorSearchOnly=False):
+    #output_dict = output_parser.parse(qa_chain({"query":query})['result'])
+    if vectorSearchOnly:
+        return vectordb.similarity_search(query)
+    print("query: ", query)
+    return chain.invoke(query)

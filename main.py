@@ -16,9 +16,10 @@ async def root():
 
 class QueryItem(BaseModel):
     query: str
+    fastSearch: bool = False
 
 @app.post("/query")
 async def post_query(item: QueryItem):
     if not item.query:
         raise HTTPException(status_code=400, detail="Query cannot be empty")
-    return query_index(item.query)
+    return query_index(item.query, item.fastSearch)
